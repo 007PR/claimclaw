@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -23,21 +22,13 @@ from .legal_rag import (
     load_legal_retriever,
     moratorium_rule_check,
 )
+from .preflight import run_preflight
+from .utils.llm_factory import get_main_llm, get_vision_llm
 from .workflow import build_workflow, run_workflow
 
 
 def _json_print(payload: Any) -> None:
     print(json.dumps(payload, indent=2, ensure_ascii=True))
-
-
-def _build_openai_chat_llm(model_name: str) -> Any | None:
-    if not os.getenv("OPENAI_API_KEY"):
-        return None
-    try:
-        from langchain_openai import ChatOpenAI
-    except Exception:
-        return None
-    return ChatOpenAI(model=model_name, temperature=0)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -99,14 +90,50 @@ def _build_parser() -> argparse.ArgumentParser:
     workflow.add_argument("--checkpoint-db", default="storage/claimclaw_state.sqlite")
     workflow.add_argument("--dry-run-portal", default="true")
 
+    doctor = sub.add_parser("doctor", help="Run environment and runtime preflight checks")
+    doctor.add_argument("--strict", action="store_true", help="Treat warnings as failures")
+
     return parser
 
 
+def _resolve_llms(settings: Any) -> tuple[Any | None, Any | None]:
+    forensic_llm = None
+    vision_llm = None
+    if settings.llm_provider.lower() == "openai":
+        forensic_llm = get_main_llm(model_name=settings.openai_chat_model)
+        vision_llm = get_vision_llm(model_name=settings.openai_vision_model)
+    return forensic_llm, vision_llm
+
+
+def _forensic_gate(settings: Any, forensic_llm: Any | None) -> tuple[bool, list[str]]:
+    warnings: list[str] = []
+    if forensic_llm is not None:
+        return True, warnings
+
+    if settings.strict_llm_mode and not settings.dev_allow_fallback:
+        return False, warnings
+
+    warnings.append(
+        "Running without forensic LLM (DEV_ALLOW_FALLBACK=true). Results may use heuristic fallback paths."
+    )
+    return True, warnings
+
+
 def main() -> None:
-    load_dotenv()
+    project_root = Path(__file__).resolve().parents[1]
+    load_dotenv(project_root / ".env", override=False)
+
     settings = load_settings()
     parser = _build_parser()
     args = parser.parse_args()
+
+    if args.command == "doctor":
+        report = run_preflight(project_root=project_root)
+        if args.strict and report.get("summary", {}).get("warnings", 0) > 0 and report["status"] != "fail":
+            report["status"] = "fail"
+            report["strict_override"] = "warnings_promoted_to_failures"
+        _json_print(report)
+        return
 
     if args.command == "ingest-legal":
         result = ingest_legal_corpus(
@@ -211,7 +238,7 @@ def main() -> None:
         }
         payload.update(scrape_errors)
 
-        if not os.getenv("OPENAI_API_KEY"):
+        if not settings.openai_api_key:
             payload["vectorstore_status"] = "skipped_missing_openai_api_key"
         else:
             try:
@@ -241,47 +268,54 @@ def main() -> None:
         return
 
     if args.command == "analyze-docs":
-        forensic_llm = None
-        vision_llm = None
-        if settings.llm_provider.lower() == "openai":
-            forensic_llm = _build_openai_chat_llm(settings.openai_chat_model)
-            vision_llm = _build_openai_chat_llm(settings.openai_vision_model)
-        if forensic_llm is None:
+        forensic_llm, vision_llm = _resolve_llms(settings)
+        allowed, warnings = _forensic_gate(settings, forensic_llm)
+        if not allowed:
             _json_print(
                 {
                     "error": "forensic_llm_unavailable",
                     "detail": (
-                        "LLM-based forensic extraction is required in production mode. "
-                        "Set OPENAI_API_KEY and OPENAI_CHAT_MODEL."
+                        "LLM-based forensic extraction is required in strict mode. "
+                        "Set OPENAI_API_KEY or toggle DEV_ALLOW_FALLBACK=true for local testing."
                     ),
                 }
             )
             return
 
-        report = analyze_documents(
-            policy_document_path=args.policy_document,
-            rejection_letter_path=args.rejection_letter,
-            discharge_summary_path=args.discharge_summary,
-            hospital_bill_path=args.hospital_bill,
-            vision_llm=vision_llm,
-            forensic_llm=forensic_llm,
-        )
+        try:
+            report = analyze_documents(
+                policy_document_path=args.policy_document,
+                rejection_letter_path=args.rejection_letter,
+                discharge_summary_path=args.discharge_summary,
+                hospital_bill_path=args.hospital_bill,
+                vision_llm=vision_llm,
+                forensic_llm=forensic_llm,
+            )
+        except Exception as exc:
+            _json_print(
+                {
+                    "error": "analyze_docs_failed",
+                    "detail": str(exc),
+                    "hint": "Run `python -m claimclaw.cli doctor` to diagnose connectivity and environment issues.",
+                }
+            )
+            return
+
+        if warnings:
+            report["runtime_warnings"] = warnings
         _json_print(report)
         return
 
     if args.command == "run-workflow":
-        forensic_llm = None
-        vision_llm = None
-        if settings.llm_provider.lower() == "openai":
-            forensic_llm = _build_openai_chat_llm(settings.openai_chat_model)
-            vision_llm = _build_openai_chat_llm(settings.openai_vision_model)
-        if forensic_llm is None:
+        forensic_llm, vision_llm = _resolve_llms(settings)
+        allowed, warnings = _forensic_gate(settings, forensic_llm)
+        if not allowed:
             _json_print(
                 {
                     "error": "forensic_llm_unavailable",
                     "detail": (
-                        "LLM-based forensic extraction is required in production mode. "
-                        "Set OPENAI_API_KEY and OPENAI_CHAT_MODEL."
+                        "LLM-based forensic extraction is required in strict mode. "
+                        "Set OPENAI_API_KEY or toggle DEV_ALLOW_FALLBACK=true for local testing."
                     ),
                 }
             )
@@ -313,7 +347,20 @@ def main() -> None:
             "insurer_reply_received": bool(args.insurer_reply_received),
             "dry_run_portal": dry_run,
         }
-        result = run_workflow(graph=graph, initial_state=initial_state, claim_id=args.claim_id)
+        try:
+            result = run_workflow(graph=graph, initial_state=initial_state, claim_id=args.claim_id)
+        except Exception as exc:
+            _json_print(
+                {
+                    "error": "workflow_run_failed",
+                    "detail": str(exc),
+                    "hint": "Run `python -m claimclaw.cli doctor` to validate connectivity and checkpoint access.",
+                }
+            )
+            return
+
+        if warnings:
+            result["runtime_warnings"] = warnings
         _json_print(result)
         return
 

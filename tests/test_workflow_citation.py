@@ -184,6 +184,64 @@ def test_workflow_ghost_rejection_overrides_recommended_action(tmp_path: Path) -
     )
 
 
+def test_workflow_does_not_force_bad_faith_when_clause_anchor_missing(tmp_path: Path) -> None:
+    class _NoAnchorEvidenceAgent:
+        def run(
+            self,
+            policy_document_path: str,
+            rejection_letter_path: str,
+            discharge_summary_path: str,
+            hospital_bill_path: str,
+        ) -> dict[str, object]:
+            return {
+                "rejection_reason": "Repudiation due to PED",
+                "flags": ["Awaiting clause extraction"],
+                "forensic_validation": {
+                    "clause_id": "",
+                    "is_clause_present_in_policy": False,
+                    "ghost_rejection": False,
+                },
+            }
+
+    class _NonIllegalPolicyAgent:
+        def run(
+            self,
+            policy_age_years: float,
+            rejection_reason: str,
+            alleged_fraud: bool = False,
+        ) -> dict[str, object]:
+            return {
+                "illegal_rejection": False,
+                "moratorium_applies": False,
+                "legal_basis": "Base legal basis",
+                "recommended_action": "Base action",
+            }
+
+    graph = build_workflow(
+        policy_agent=_NonIllegalPolicyAgent(),
+        evidence_agent=_NoAnchorEvidenceAgent(),
+        portal_agent=_StubPortalAgent(),
+        checkpoint_db=tmp_path / "state_no_anchor.sqlite",
+    )
+    initial_state = {
+        "claim_id": "WF-CIT-3B",
+        "policy_age_years": 2.0,
+        "policy_document_path": "Policy.pdf",
+        "rejection_letter_path": "Reject.pdf",
+        "discharge_summary_path": "Discharge.pdf",
+        "hospital_bill_path": "Bill.pdf",
+        "insurer_name": "Test Insurer",
+        "policy_number": "P-12345",
+        "complainant_name": "Test User",
+        "mobile": "9999999999",
+        "email": "test@example.com",
+        "insurer_reply_received": False,
+        "dry_run_portal": True,
+    }
+    result = run_workflow(graph, initial_state, claim_id="WF-CIT-3B")
+    assert result["legal_analysis"]["recommended_action"] == "Base action"
+
+
 def test_workflow_rebuttal_includes_constructive_knowledge_note(tmp_path: Path) -> None:
     class _ConstructiveEvidenceAgent:
         def run(

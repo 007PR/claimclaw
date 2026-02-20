@@ -57,7 +57,7 @@ ClaimClaw/
 ## Setup
 
 ```bash
-cd "/Users/bimalbairagya/Documents/Claimclaw/ClaimClaw"
+cd "/Users/bimalbairagya/Desktop/ClaimClaw"
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -71,14 +71,14 @@ Store secrets in macOS Keychain instead of plaintext files.
 1. Save keys once:
 
 ```bash
-cd "/Users/bimalbairagya/Documents/Claimclaw/ClaimClaw"
+cd "/Users/bimalbairagya/Desktop/ClaimClaw"
 ./scripts/set-secrets.sh
 ```
 
 2. Load keys for current shell before running ClaimClaw:
 
 ```bash
-cd "/Users/bimalbairagya/Documents/Claimclaw/ClaimClaw"
+cd "/Users/bimalbairagya/Desktop/ClaimClaw"
 source ./scripts/load-secrets.sh
 ```
 
@@ -95,6 +95,25 @@ source ./scripts/load-secrets.sh
 ## Alternative Environment File
 
 If you use `.env`, never commit it. This repo includes `.gitignore` rules for `.env` and `*.env`.
+
+Runtime gates:
+- `STRICT_LLM_MODE=true` (default): forensic LLM extraction is mandatory.
+- `DEV_ALLOW_FALLBACK=false` (default): prevents silent fallback in strict mode.
+- Use `DEV_ALLOW_FALLBACK=true` only for local offline debugging.
+
+## Environment Preflight
+
+Run a full environment diagnostic before claim analysis:
+
+```bash
+.venv/bin/python -m claimclaw.cli doctor
+```
+
+Fail on warnings (strict check):
+
+```bash
+.venv/bin/python -m claimclaw.cli doctor --strict
+```
 
 ## Quickstart
 

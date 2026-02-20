@@ -9,6 +9,23 @@ from typing import Any
 
 from .schemas import EvidenceFinding
 
+
+class EvidenceMatcher:
+    """Compatibility wrapper for clause presence checks."""
+
+    @staticmethod
+    def verify_clause_presence(clause_id: str, policy_text: str) -> dict[str, Any]:
+        normalized_clause = re.sub(r"\s+", " ", (clause_id or "")).strip().lower()
+        normalized_policy = re.sub(r"\s+", " ", (policy_text or "")).strip().lower()
+        is_present = bool(normalized_clause) and normalized_clause in normalized_policy
+        return {
+            "clause_id": clause_id,
+            "is_clause_present_in_policy": is_present,
+            "ghost_rejection": not is_present,
+            "policy_clause_excerpt": policy_text[:240] if is_present else "",
+        }
+
+
 IRDAI_MORATORIUM_CITATION = "IRDAI/HLT/CIR/PRO/84/5/2024, Clause 6.1"
 CONSTRUCTIVE_KNOWLEDGE_LEGAL_NOTE = (
     "The insurer had constructive knowledge of the condition as the specific maintenance medication "
@@ -530,8 +547,14 @@ def parse_itemized_bill_with_vision(
             }
         )
 
-    response = vision_llm.invoke([HumanMessage(content=content)])
-    parsed = _coerce_json_payload(response.content)
+    try:
+        response = vision_llm.invoke([HumanMessage(content=content)])
+        parsed = _coerce_json_payload(response.content)
+    except Exception as exc:
+        return {
+            "items": [],
+            "notes": f"Vision parsing unavailable: {exc}",
+        }
     parsed.setdefault("items", [])
     return parsed
 

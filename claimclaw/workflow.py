@@ -161,7 +161,12 @@ def build_workflow(
         else:
             legal_analysis["legal_basis"] = legal_basis
 
-        if forensic.get("ghost_rejection") or forensic.get("is_clause_present_in_policy") is False:
+        has_clause_anchor = bool(
+            str(forensic.get("clause_id") or forensic.get("clause_identifier") or "").strip()
+        )
+        if forensic.get("ghost_rejection") or (
+            has_clause_anchor and forensic.get("is_clause_present_in_policy") is False
+        ):
             legal_analysis["recommended_action"] = (
                 'Immediate Escalation: The insurer is citing a non-existent policy clause. '
                 'File a "Bad Faith" grievance on Bima Bharosa immediately.'
@@ -271,9 +276,20 @@ def build_workflow(
     graph.add_edge("file_bima_bharosa", END)
 
     checkpoint_db = Path(checkpoint_db)
-    checkpoint_db.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(checkpoint_db), check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
+
+    def _build_checkpointer(db_path: Path) -> SqliteSaver:
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        saver = SqliteSaver(conn)
+        saver.setup()
+        return saver
+
+    try:
+        checkpointer = _build_checkpointer(checkpoint_db)
+    except sqlite3.OperationalError:
+        fallback_db = Path("/tmp/claimclaw_state.sqlite")
+        checkpointer = _build_checkpointer(fallback_db)
+
     return graph.compile(checkpointer=checkpointer)
 
 

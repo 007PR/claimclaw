@@ -7,7 +7,10 @@ __all__ = [
     "legalbrain",
     "legal_rag",
     "portal_automation",
+    "preflight",
     "prompts",
+    "rules",
     "schemas",
+    "utils",
     "workflow",
 ]
