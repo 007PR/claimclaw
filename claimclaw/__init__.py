@@ -12,5 +12,6 @@ __all__ = [
     "rules",
     "schemas",
     "utils",
+    "web_app",
     "workflow",
 ]

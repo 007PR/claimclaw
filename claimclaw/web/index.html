@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ClaimClaw Chat</title>
+  <style>
+    :root {
+      --bg: #0d0f14;
+      --panel: #131821;
+      --panel-2: #10151e;
+      --line: #243143;
+      --text: #eaf1ff;
+      --muted: #9fb0cf;
+      --ok: #57d3a2;
+      --err: #ff8686;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.45 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: radial-gradient(1200px 700px at 85% -10%, #17243a 0%, var(--bg) 45%);
+      min-height: 100vh;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      gap: 12px;
+      padding: 12px;
+      min-height: 100vh;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .sidebar-body {
+      padding: 12px;
+      overflow: auto;
+      display: grid;
+      gap: 12px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 999px;
+      background: var(--ok);
+      box-shadow: 0 0 12px rgba(87, 211, 162, 0.7);
+    }
+
+    .muted { color: var(--muted); }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 9px 10px;
+      background: #0f151f;
+      color: var(--text);
+    }
+
+    button {
+      border: 1px solid #33517d;
+      border-radius: 9px;
+      background: #102039;
+      color: #cbe4ff;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    button.secondary {
+      border-color: #35654f;
+      background: #13261f;
+      color: #c9f2df;
+    }
+
+    button:disabled { opacity: 0.65; cursor: wait; }
+
+    .thread-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 8px;
+      max-height: 280px;
+      overflow: auto;
+    }
+
+    .thread-item {
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #0f1622;
+      cursor: pointer;
+      display: grid;
+      gap: 4px;
+    }
+
+    .thread-item.active {
+      border-color: #35654f;
+      background: #12221c;
+    }
+
+    .thread-name {
+      font-weight: 600;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .thread-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .thread-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .day-badge {
+      border: 1px solid #3b5579;
+      border-radius: 999px;
+      font-size: 11px;
+      color: #b9d8ff;
+      background: #102039;
+      padding: 1px 6px;
+      line-height: 1.4;
+    }
+
+    .note-btn {
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 1px solid #3b5579;
+      border-radius: 6px;
+      background: #0f223f;
+      color: #cbe4ff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    .note-btn.has-note {
+      border-color: #35654f;
+      background: #13261f;
+      color: #c9f2df;
+    }
+
+    .thread-meta {
+      color: var(--muted);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .chat {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      min-height: 0;
+    }
+
+    .status-bar {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .status-chip {
+      border: 1px solid #33517d;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 12px;
+      color: #b9d8ff;
+      background: #102039;
+    }
+
+    .messages {
+      padding: 16px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: rgba(8, 11, 16, 0.45);
+    }
+
+    .msg {
+      max-width: 88%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      white-space: pre-wrap;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: #0f2441;
+      border-color: #28568d;
+    }
+
+    .msg.assistant {
+      align-self: flex-start;
+      background: #121a24;
+    }
+
+    .msg.error {
+      border-color: #7a3232;
+      background: #2c1515;
+      color: #ffd1d1;
+    }
+
+    .composer {
+      border-top: 1px solid var(--line);
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+      background: var(--panel);
+    }
+
+    .typing {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 0 2px;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #45648f;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #messageInput { flex: 1; }
+    #fileInput { display: none; }
+
+    @media (max-width: 1000px) {
+      .app { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="panel">
+      <div class="head">Threads</div>
+      <div class="sidebar-body">
+        <div class="brand"><span class="dot"></span> ClaimClaw Chat</div>
+        <div class="muted">Create a named thread per policyholder/agent case.</div>
+
+        <div class="row">
+          <input id="threadNameInput" type="text" placeholder="Enter name (e.g., Rahul Mehta)" />
+          <button id="newThreadBtn">New</button>
+        </div>
+
+        <ul id="threadList" class="thread-list"></ul>
+      </div>
+    </aside>
+
+    <section class="panel chat">
+      <div class="status-bar">
+        <strong id="chatTitle">ClaimClaw Console</strong>
+        <span class="status-chip" id="statusChip">Idle</span>
+      </div>
+
+      <div class="messages" id="messages"></div>
+
+      <div class="composer">
+        <div id="typingRow" class="typing" style="display:none;">
+          <span class="spinner"></span>
+          <span>Analyzing documents and reasoning...</span>
+        </div>
+        <div class="row">
+          <button class="secondary" id="uploadBtn">Upload Documents</button>
+          <input id="messageInput" type="text" placeholder="Ask: Is this rejection valid? What next? Escalate now." />
+          <button id="sendBtn">Send</button>
+        </div>
+        <input id="fileInput" type="file" accept=".pdf" multiple />
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const threadNameInput = document.getElementById("threadNameInput");
+    const newThreadBtn = document.getElementById("newThreadBtn");
+    const threadList = document.getElementById("threadList");
+    const chatTitle = document.getElementById("chatTitle");
+
+    const messagesEl = document.getElementById("messages");
+    const statusChip = document.getElementById("statusChip");
+    const typingRow = document.getElementById("typingRow");
+    const messageInput = document.getElementById("messageInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const fileInput = document.getElementById("fileInput");
+
+    let currentSessionId = null;
+    let threads = [];
+
+    function setStatus(v) { statusChip.textContent = v; }
+    function setTyping(v) { typingRow.style.display = v ? "inline-flex" : "none"; }
+
+    async function parseJsonSafe(res) {
+      try {
+        return await res.json();
+      } catch {
+        return {};
+      }
+    }
+
+    function renderMessages(messages) {
+      messagesEl.innerHTML = "";
+      if (!messages || !messages.length) {
+        const node = document.createElement("div");
+        node.className = "msg assistant";
+        node.textContent = "Start by uploading documents or sending a message.";
+        messagesEl.appendChild(node);
+        return;
+      }
+      for (const item of messages) {
+        const role = item.role === "user" ? "user" : "assistant";
+        const node = document.createElement("div");
+        node.className = `msg ${role}`;
+        node.textContent = item.content || "";
+        messagesEl.appendChild(node);
+      }
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function renderThreads() {
+      threadList.innerHTML = "";
+      for (const t of threads) {
+        const li = document.createElement("li");
+        li.className = `thread-item${t.session_id === currentSessionId ? " active" : ""}`;
+        li.dataset.sessionId = t.session_id;
+
+        const top = document.createElement("div");
+        top.className = "thread-top";
+
+        const name = document.createElement("div");
+        name.className = "thread-name";
+        name.textContent = t.thread_name || "New Claim";
+
+        const actions = document.createElement("div");
+        actions.className = "thread-actions";
+
+        const day = document.createElement("span");
+        day.className = "day-badge";
+        day.textContent = `${Number(t.age_days || 0)}d`;
+
+        const noteBtn = document.createElement("button");
+        noteBtn.type = "button";
+        noteBtn.className = `note-btn${t.thread_note ? " has-note" : ""}`;
+        noteBtn.title = t.thread_note ? `Edit note: ${t.thread_note}` : "Add note";
+        noteBtn.textContent = "N";
+        noteBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          editThreadNote(t);
+        });
+
+        actions.appendChild(day);
+        actions.appendChild(noteBtn);
+        top.appendChild(name);
+        top.appendChild(actions);
+        li.appendChild(top);
+
+        if (t.thread_note) {
+          const meta = document.createElement("div");
+          meta.className = "thread-meta";
+          meta.textContent = t.thread_note;
+          li.appendChild(meta);
+        }
+
+        li.addEventListener("click", () => loadThread(t.session_id));
+        threadList.appendChild(li);
+      }
+    }
+
+    async function editThreadNote(thread) {
+      const current = thread.thread_note || "";
+      const next = window.prompt(`Notes for ${thread.thread_name || "thread"}:`, current);
+      if (next === null) return;
+      setStatus("Saving Note");
+      try {
+        const res = await fetch(`/api/chat/thread/${thread.session_id}/note`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: next }),
+        });
+        const data = await parseJsonSafe(res);
+        if (!res.ok) {
+          throw new Error(data.detail || "Failed to save note");
+        }
+        await refreshThreads();
+        if (currentSessionId === thread.session_id) {
+          await loadThread(thread.session_id);
+        } else {
+          renderThreads();
+        }
+        setStatus("Ready");
+      } catch (err) {
+        setStatus("Error");
+        const node = document.createElement("div");
+        node.className = "msg assistant error";
+        node.textContent = `Note save failed: ${err.message}`;
+        messagesEl.appendChild(node);
+      }
+    }
+
+    async function refreshThreads() {
+      const res = await fetch("/api/chat/threads");
+      const data = await parseJsonSafe(res);
+      threads = data.threads || [];
+      renderThreads();
+      return threads;
+    }
+
+    async function createThread(name) {
+      setStatus("Creating Thread");
+      newThreadBtn.disabled = true;
+      const url = name ? `/api/chat/start?thread_name=${encodeURIComponent(name)}` : "/api/chat/start";
+      const res = await fetch(url, { method: "POST" });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) {
+        throw new Error(data.detail || "Failed to create thread");
+      }
+      await refreshThreads();
+      await loadThread(data.session_id);
+      threadNameInput.value = "";
+      addSystemMessage(`Thread created: ${data.thread_name || "New Claim"}`);
+      setStatus("Ready");
+      newThreadBtn.disabled = false;
+    }
+
+    async function loadThread(sessionId) {
+      setStatus("Loading Thread");
+      const res = await fetch(`/api/chat/thread/${sessionId}`);
+      const data = await parseJsonSafe(res);
+      if (!res.ok) {
+        throw new Error(data.detail || "Failed to load thread");
+      }
+      currentSessionId = data.session_id;
+      chatTitle.textContent = `ClaimClaw Console — ${data.thread_name || "New Claim"}`;
+      renderMessages(data.messages || []);
+      renderThreads();
+      setStatus("Ready");
+    }
+
+    async function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text || !currentSessionId) return;
+      messageInput.value = "";
+      setTyping(true);
+      setStatus("Thinking");
+      try {
+        const res = await fetch("/api/chat/message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: currentSessionId, message: text }),
+        });
+        const data = await parseJsonSafe(res);
+        await refreshThreads();
+        await loadThread(currentSessionId);
+        if (!res.ok) {
+          throw new Error(data.detail || data.error || "Message failed");
+        }
+        setStatus(data.error ? "Error" : "Ready");
+      } catch (err) {
+        const node = document.createElement("div");
+        node.className = "msg assistant error";
+        node.textContent = `Message failed: ${err.message}`;
+        messagesEl.appendChild(node);
+        setStatus("Error");
+      } finally {
+        setTyping(false);
+      }
+    }
+
+    async function uploadFiles(files) {
+      if (!currentSessionId) return;
+      for (const file of files) {
+        setTyping(true);
+        setStatus("Uploading");
+        const fd = new FormData();
+        fd.append("session_id", currentSessionId);
+        fd.append("file", file);
+        try {
+          const res = await fetch("/api/chat/upload", { method: "POST", body: fd });
+          const data = await parseJsonSafe(res);
+          if (!res.ok) {
+            throw new Error(data.detail || data.error || "Upload failed");
+          }
+          await refreshThreads();
+          await loadThread(currentSessionId);
+          setStatus(data.analysis_error ? "Error" : "Ready");
+        } catch (err) {
+          const node = document.createElement("div");
+          node.className = "msg assistant error";
+          node.textContent = `Upload failed: ${err.message}`;
+          messagesEl.appendChild(node);
+          setStatus("Error");
+        } finally {
+          setTyping(false);
+        }
+      }
+    }
+
+    newThreadBtn.addEventListener("click", () => {
+      createThread(threadNameInput.value.trim()).catch((err) => {
+        newThreadBtn.disabled = false;
+        setStatus("Error");
+        const node = document.createElement("div");
+        node.className = "msg assistant error";
+        node.textContent = `Thread creation failed: ${err.message}`;
+        messagesEl.appendChild(node);
+      });
+    });
+
+    threadNameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") newThreadBtn.click();
+    });
+
+    sendBtn.addEventListener("click", sendMessage);
+    messageInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendMessage();
+    });
+
+    uploadBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const files = Array.from(fileInput.files || []);
+      if (files.length) uploadFiles(files);
+      fileInput.value = "";
+    });
+
+    async function bootstrap() {
+      setStatus("Initializing");
+      const list = await refreshThreads();
+      if (list.length) {
+        await loadThread(list[0].session_id);
+      } else {
+        await createThread("New Claim");
+      }
+      setStatus("Ready");
+    }
+
+    bootstrap().catch((err) => {
+      setStatus("Error");
+      alert(`Failed to initialize: ${err.message}`);
+    });
+
+    function addSystemMessage(text) {
+      const node = document.createElement("div");
+      node.className = "msg assistant";
+      node.textContent = text;
+      messagesEl.appendChild(node);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+  </script>
+</body>
+</html>

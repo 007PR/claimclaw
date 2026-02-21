@@ -35,6 +35,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="claimclaw", description="ClaimClaw CLI")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    web = sub.add_parser("serve-web", help="Run the ClaimClaw web interface")
+    web.add_argument("--host", default="127.0.0.1")
+    web.add_argument("--port", type=int, default=8000)
+    web.add_argument("--reload", action="store_true")
+
     ingest = sub.add_parser("ingest-legal", help="Ingest IRDAI legal corpus into vector DB")
     ingest.add_argument("--source-dir", required=True)
     ingest.add_argument("--persist-dir", required=True)
@@ -126,6 +131,18 @@ def main() -> None:
     settings = load_settings()
     parser = _build_parser()
     args = parser.parse_args()
+
+    if args.command == "serve-web":
+        import uvicorn
+
+        uvicorn.run(
+            "claimclaw.web_app:create_web_app",
+            host=args.host,
+            port=args.port,
+            reload=bool(args.reload),
+            factory=True,
+        )
+        return
 
     if args.command == "doctor":
         report = run_preflight(project_root=project_root)

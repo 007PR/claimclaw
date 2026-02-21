@@ -115,6 +115,26 @@ Fail on warnings (strict check):
 .venv/bin/python -m claimclaw.cli doctor --strict
 ```
 
+## Web Mode
+
+Run ClaimClaw as a chat-first web app (same backend brain, no manual claim fields required):
+
+```bash
+.venv/bin/python -m claimclaw.cli serve-web --host 127.0.0.1 --port 8000
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000
+```
+
+Flow:
+- Create a named thread (`New`) for each policyholder/case
+- Upload policy/rejection/discharge/bill PDFs directly in chat
+- ClaimClaw auto-runs analysis when all required docs are uploaded
+- Ask follow-ups like `Is this valid?`, `What next?`, or `Escalate now`
+
 ## Quickstart
 
 1. Ingest legal corpus:
